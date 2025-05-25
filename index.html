@@ -214,17 +214,19 @@
         const buscaNomeData = await buscaNomeRes.json();
         console.log("Firebase - Resultado da busca:", buscaNomeData);
 
-        // Verificação mais robusta
-        if (buscaNomeData !== null && typeof buscaNomeData === 'object' && !Array.isArray(buscaNomeData)) {
-          const keys = Object.keys(buscaNomeData);
-          if (keys.length > 0) {
+        // Verificação reforçada: só gera token se NÃO encontrar nenhum com o mesmo nome
+        if (buscaNomeData && typeof buscaNomeData === 'object' && !Array.isArray(buscaNomeData)) {
+          const registros = Object.values(buscaNomeData);
+          const encontrouNome = registros.some(reg => reg.nome === nome);
+
+          if (encontrouNome) {
             mostrarToast("Este nome já está cadastrado.", "error");
             output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
             return;
           }
         }
 
-        // Nenhum registro encontrado — prosseguir com geração do token
+        // Geração do token e salvamento no Firebase
         const token = gerarUUID();
 
         const hoje = new Date();
@@ -263,37 +265,4 @@
       } catch (e) {
         console.error('Erro:', e);
         mostrarToast("Erro ao gerar token.", "error");
-        output.innerText = "Erro ao processar solicitação: " + e.message;
-      }
-    }
-
-    function copiarToken() {
-      const tokenField = document.getElementById('tokenDisplay');
-      tokenField.select();
-      tokenField.setSelectionRange(0, 99999); // Para mobile
-      document.execCommand("copy");
-
-      mostrarToast("Token copiado!", "success");
-    }
-
-    function mostrarToast(mensagem, tipo = "success") {
-      const toast = document.getElementById("toast");
-      toast.className = "show";
-      toast.className = `show ${tipo}`;
-      toast.innerText = mensagem;
-
-      setTimeout(() => {
-        toast.className = toast.className.replace("show", "");
-      }, 3000);
-    }
-
-    // Fechar popup ao clicar fora
-    document.getElementById('popupOverlay').addEventListener('click', function(e) {
-      if (e.target === this) {
-        this.style.display = 'none';
-      }
-    });
-  </script>
-
-</body>
-</html>
+        output.innerText = "Erro ao processar solicita
