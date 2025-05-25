@@ -54,10 +54,20 @@
       font-family: monospace;
     }
 
-    /* Estilo do Popup */
+    /* Overlay escuro */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 999;
+    }
+
+    /* Popup centralizado */
     .popup {
       position: fixed;
-      top: 20%;
+      top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       background-color: #1e1e1e;
@@ -68,7 +78,7 @@
       z-index: 1000;
       width: 90%;
       max-width: 400px;
-      display: none;
+      display: flex;
       flex-direction: column;
       gap: 10px;
     }
@@ -98,15 +108,6 @@
       color: #121212;
       width: auto;
       padding: 8px 16px;
-    }
-
-    .overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 999;
     }
 
     footer {
@@ -179,13 +180,10 @@
         const buscaNomeData = await buscaNomeRes.json();
         console.log("Firebase - Resultado da busca:", buscaNomeData);
 
-        if (buscaNomeData && typeof buscaNomeData === 'object') {
-          const keys = Object.keys(buscaNomeData);
-          if (keys.length > 0) {
-            mostrarToast("Este nome já está cadastrado.", "error");
-            output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
-            return;
-          }
+        if (buscaNomeData && Object.keys(buscaNomeData).length > 0) {
+          mostrarToast("Este nome já está cadastrado.", "error");
+          output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
+          return;
         }
 
         // Gera o token e todos os campos
@@ -213,11 +211,11 @@
 
         if (!res.ok) throw new Error(`Erro ao salvar no Firebase: ${res.status}`);
 
-        // Exibe popup com token
+        // Mostra popup com token
         document.getElementById('tokenDisplay').value = token;
-        document.getElementById('popupOverlay').style.display = 'block';
+        document.getElementById('popupOverlay').style.display = 'flex';
 
-        // Mostra também a saída normal
+        // Exibe resultado normal
         output.innerHTML =
           `<strong>Token gerado com sucesso.</strong><br>` +
           `Nome: ${nome}<br>` +
@@ -236,7 +234,7 @@
       tokenField.setSelectionRange(0, 99999); // Para mobile
       document.execCommand("copy");
 
-      alert("Token copiado para a área de transferência!");
+      mostrarToast("Token copiado!", "success");
     }
 
     function mostrarToast(mensagem, tipo = "success") {
@@ -244,10 +242,34 @@
       toast.id = "toast";
       toast.className = `show ${tipo}`;
       toast.innerText = mensagem;
+      toast.style.cssText = `
+        visibility: hidden;
+        min-width: 250px;
+        background: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 5px;
+        padding: 12px;
+        position: fixed;
+        z-index: 10;
+        left: 50%;
+        bottom: 30px;
+        margin-left: -125px;
+        opacity: 0;
+        transition: opacity 0.5s, visibility 0.5s;
+      `;
       document.body.appendChild(toast);
 
       setTimeout(() => {
-        toast.remove();
+        toast.style.opacity = "1";
+        toast.style.visibility = "visible";
+      }, 100);
+
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        setTimeout(() => {
+          toast.remove();
+        }, 500);
       }, 3000);
     }
 
