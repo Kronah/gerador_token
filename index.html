@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Gerador de Tokens</title>
+  <title>Gerador de Tokens - BossDV</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
@@ -183,12 +183,14 @@
     function gerarUUID() {
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0,
-              v = c === 'x' ? r : (r & 0x3 | 0x8);
+              v = c == 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
       });
     }
 
     async function gerarToken() {
+      console.log("🔄 Iniciando geração de token...");
+
       const nomeInput = document.getElementById('nome');
       const diasInput = document.getElementById('dias');
       const outputElement = document.getElementById('output');
@@ -205,36 +207,35 @@
       outputElement.innerText = "Verificando se o nome já existe...";
 
       try {
-        // URL para consulta com filtro pelo nome
         const url = `${firebaseBase}.json?orderBy="nome"&equalTo="${nome}"`;
+        console.log("🌐 URL da requisição:", url);
+
         const response = await fetch(url);
 
         if (!response.ok) throw new Error("Erro na consulta ao Firebase: " + response.status);
 
         const data = await response.json();
+        console.log("📄 Dados do Firebase:", data);
 
-        // Se existir algum registro com o nome, mostra erro
         if (data && Object.keys(data).length > 0) {
           mostrarToast("Este nome já está cadastrado.", "error");
           outputElement.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
           return;
         }
 
-        // Gerar token novo
         const token = gerarUUID();
+
         const hoje = new Date();
         const dataExpira = new Date(hoje.getTime() + diasValidade * 24 * 60 * 60 * 1000);
         const expire_at = dataExpira.toISOString().split('T')[0];
-        const device_id = gerarUUID();
 
+        // Salvar token SEM device_id
         const tokenObj = {
           valid: true,
           expire_at: expire_at,
-          device_id: device_id,
           nome: nome
         };
 
-        // Salvar token no Firebase
         const saveRes = await fetch(`${firebaseBase}/${token}.json`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -243,48 +244,40 @@
 
         if (!saveRes.ok) throw new Error("Erro ao salvar token: " + saveRes.status);
 
-        // Exibir token na popup
+        console.log("🎉 Token salvo com sucesso:", token);
         document.getElementById('tokenDisplay').value = token;
         document.getElementById('popupOverlay').style.display = 'flex';
 
         outputElement.innerHTML =
           `<strong>Token gerado com sucesso.</strong><br>` +
           `Nome: ${nome}<br>` +
-          `Device ID: ${device_id}<br>` +
           `Validade até: ${expire_at}`;
 
         mostrarToast("Token gerado com sucesso!", "success");
 
       } catch (error) {
-        console.error("Erro ao gerar token:", error);
+        console.error("❌ Erro ao gerar token:", error);
         mostrarToast("Erro ao gerar token: " + error.message, "error");
         outputElement.innerText = "Erro: " + error.message;
       }
     }
 
     function copiarToken() {
-      const tokenTextArea = document.getElementById("tokenDisplay");
-      tokenTextArea.select();
-      tokenTextArea.setSelectionRange(0, 99999); // Para dispositivos móveis
-
-      navigator.clipboard.writeText(tokenTextArea.value)
-        .then(() => {
-          mostrarToast("Token copiado para a área de transferência!", "success");
-        })
-        .catch(() => {
-          mostrarToast("Não foi possível copiar o token.", "error");
-        });
+      const tokenField = document.getElementById('tokenDisplay');
+      tokenField.select();
+      tokenField.setSelectionRange(0, 99999); // Para mobile
+      document.execCommand("copy");
+      mostrarToast("Token copiado!", "success");
     }
 
     function mostrarToast(mensagem, tipo = "success") {
       const toast = document.getElementById("toast");
+      toast.className = "show";
+      toast.className = `show ${tipo}`;
       toast.innerText = mensagem;
-      toast.className = "";
-      toast.classList.add(tipo);
-      toast.classList.add("show");
 
       setTimeout(() => {
-        toast.classList.remove("show");
+        toast.className = toast.className.replace("show", "");
       }, 3000);
     }
 
@@ -295,6 +288,5 @@
       }
     });
   </script>
-
 </body>
 </html>
