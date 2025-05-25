@@ -100,22 +100,32 @@
       }
 
       try {
-        // Verifica se o nome já existe no Firebase
-        const buscaNomeRes = await fetch(`https://bossdv-72d16-default-rtdb.firebaseio.com/tokens.json?orderBy= "nome"&equalTo="${nome}"`);
-        const buscaNomeData = await buscaNomeRes.json();
+        output.innerText = "Verificando se o nome já existe...";
 
-        if (buscaNomeData && Object.keys(buscaNomeData).length > 0) {
-          output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
-          return;
+        const url = `https://bossdv-72d16-default-rtdb.firebaseio.com/tokens.json?orderBy= "nome"&equalTo="${encodeURIComponent(nome)}"`;
+        const buscaNomeRes = await fetch(url);
+
+        if (!buscaNomeRes.ok) {
+          throw new Error(`Erro na requisição ao Firebase: ${buscaNomeRes.status}`);
         }
 
-        // Gera token único
+        const buscaNomeData = await buscaNomeRes.json();
+        console.log("Firebase - Resultado da busca:", buscaNomeData); // Debug
+
+        if (buscaNomeData && typeof buscaNomeData === 'object') {
+          const keys = Object.keys(buscaNomeData);
+          if (keys.length > 0) {
+            output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
+            return;
+          }
+        }
+
+        // Nenhum nome encontrado — prosseguir com geração do token
         const token = gerarUUID();
 
         const hoje = new Date();
         const dataExpira = new Date(hoje.getTime() + diasValidade * 24 * 60 * 60 * 1000);
-        const expire_at = dataExpira.toISOString().split('T')[0];
-
+        const expire_at = dataExpira.toISOString().split('T')[0]; // YYYY-MM-DD
         const device_id = gerarUUID();
 
         const tokenObj = {
@@ -125,7 +135,6 @@
           nome: nome
         };
 
-        // Salva no Firebase
         const res = await fetch(`${firebaseBase}/${token}.json`, {
           method: 'PUT',
           body: JSON.stringify(tokenObj),
@@ -134,7 +143,7 @@
           }
         });
 
-        if (!res.ok) throw new Error('Erro ao salvar no Firebase');
+        if (!res.ok) throw new Error(`Erro ao salvar no Firebase: ${res.status}`);
 
         output.innerHTML =
           `<strong>Token gerado com sucesso:</strong><br>${token}<br><br>` +
