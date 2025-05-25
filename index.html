@@ -21,4 +21,87 @@
 <label>Validade (dias):</label><br>
 <input type="number" id="dias" min="1" max="365" value="30"><br>
 
-<button onclick="gerar
+<button onclick="gerarToken()">Gerar Token</button>
+
+<div id="output"></div>
+
+<script>
+function gerarUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+async function gerarToken() {
+  const output = document.getElementById('output');
+  const nome = document.getElementById('nome').value.trim().toUpperCase();
+  const dias = parseInt(document.getElementById('dias').value) || 30;
+
+  if (!nome) {
+    output.innerText = "Erro: Nome obrigatório.";
+    return;
+  }
+
+  const url = 'https://bossdv-72d16-default-rtdb.firebaseio.com/tokens.json?orderBy=%22nome%22&equalTo=%22 ' + encodeURIComponent(nome) + '%22';
+
+  try {
+    output.innerText = "Verificando duplicidade...";
+
+    const res = await fetch(url);
+    const texto = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      throw new Error("Resposta inválida do Firebase.");
+    }
+
+    if (data && Object.keys(data).length > 0) {
+      output.innerText = "Erro: Nome já cadastrado.";
+      return;
+    }
+
+    // Gera token
+    const token = gerarUUID();
+    const hoje = new Date();
+    const expira = new Date(hoje.getTime() + dias * 86400000);
+    const expire_at = expira.toISOString().split('T')[0];
+    const device_id = gerarUUID();
+
+    const payload = {
+      nome,
+      expire_at,
+      device_id,
+      valid: true
+    };
+
+    const putRes = await fetch(`https://bossdv-72d16-default-rtdb.firebaseio.com/tokens/ ${token}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!putRes.ok) {
+      throw new Error("Erro ao salvar token.");
+    }
+
+    output.innerHTML = `
+      ✅ Token gerado!<br><br>
+      <strong>${token}</strong><br><br>
+      Nome: ${nome}<br>
+      Expira em: ${expire_at}<br>
+      Device ID: ${device_id}
+    `;
+
+  } catch (e) {
+    console.error(e);
+    output.innerText = "Erro: " + e.message;
+  }
+}
+</script>
+
+</body>
+</html>
