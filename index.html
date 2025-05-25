@@ -14,78 +14,46 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      margin: 0;
     }
-
-    .container {
-      background: #1e1e1e;
-      border-radius: 10px;
-      padding: 30px;
-      max-width: 400px;
-      width: 100%;
-      box-shadow: 0 0 15px rgba(76, 175, 80, 0.2);
-      text-align: center;
-    }
-
     h1 {
       color: #4caf50;
-      margin-bottom: 20px;
-      font-size: 1.5rem;
+      margin-bottom: 10px;
     }
-
-    label {
-      display: block;
-      text-align: left;
-      margin-top: 15px;
-      margin-bottom: 5px;
-      font-weight: bold;
+    label, input, button {
+      font-size: 1rem;
+      margin: 8px 0;
     }
-
-    input[type="text"],
-    input[type="number"] {
-      width: 100%;
+    input, button {
       padding: 10px;
       border-radius: 6px;
       border: none;
-      font-size: 1rem;
-      background: #2c2c2c;
-      color: #fff;
-      box-sizing: border-box;
     }
-
+    input {
+      width: 250px;
+      text-transform: uppercase; /* Força letras maiúsculas */
+    }
     button {
-      margin-top: 20px;
-      width: 100%;
-      padding: 12px;
       background-color: #4caf50;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-size: 1rem;
-      font-weight: bold;
+      color: #121212;
       cursor: pointer;
+      font-weight: bold;
       transition: background-color 0.3s ease;
     }
-
     button:hover {
       background-color: #43a047;
     }
-
     #output {
-      margin-top: 25px;
+      margin-top: 20px;
       background: #222;
       padding: 15px;
       border-radius: 8px;
+      width: 100%;
+      max-width: 350px;
+      word-break: break-all;
       font-family: monospace;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 0.9rem;
-      text-align: left;
     }
-
     footer {
       margin-top: auto;
-      margin-bottom: 15px;
       font-size: 0.8rem;
       color: #555;
       user-select: none;
@@ -94,19 +62,17 @@
 </head>
 <body>
 
-  <div class="container">
-    <h1>Gerador de Tokens - BossDV</h1>
+  <h1>Gerador de Tokens - BossDV</h1>
 
-    <label for="nome">Nome:</label>
-    <input type="text" id="nome" placeholder="Digite o nome" oninput="this.value = this.value.toUpperCase()" />
+  <label for="nome">Nome:</label>
+  <input type="text" id="nome" placeholder="Digite o nome" oninput="this.value = this.value.toUpperCase()" />
 
-    <label for="dias">Validade (dias):</label>
-    <input type="number" id="dias" min="1" max="365" value="30" />
+  <label for="dias">Validade do token (dias):</label>
+  <input type="number" id="dias" min="1" max="365" value="30" />
 
-    <button onclick="gerarToken()">Gerar Token</button>
+  <button onclick="gerarToken()">Gerar Token</button>
 
-    <div id="output"></div>
-  </div>
+  <div id="output"></div>
 
   <footer>Desenvolvido por Kronah © 2025</footer>
 
@@ -136,27 +102,26 @@
       try {
         output.innerText = "Verificando se o nome já existe...";
 
-        const url = `${firebaseBase}.json?orderBy=%22nome%22&equalTo=%22${encodeURIComponent(nome)}%22`;
-        const res = await fetch(url);
-        const textoResposta = await res.text();
+        // Codificando o nome para garantir compatibilidade com URL
+        const url = `https://bossdv-72d16-default-rtdb.firebaseio.com/tokens.json?orderBy= "nome"&equalTo="${encodeURIComponent(nome)}"`;
+        const buscaNomeRes = await fetch(url);
 
-        if (!res.ok) {
-          throw new Error(`Erro HTTP ${res.status}: ${textoResposta}`);
+        if (!buscaNomeRes.ok) {
+          throw new Error(`Erro na requisição ao Firebase: ${buscaNomeRes.status}`);
         }
 
-        let data;
-        try {
-          data = JSON.parse(textoResposta);
-        } catch (e) {
-          throw new Error("Falha ao interpretar resposta do Firebase (não é JSON).");
+        const buscaNomeData = await buscaNomeRes.json();
+        console.log("Firebase - Resultado da busca:", buscaNomeData); // Debug
+
+        if (buscaNomeData && typeof buscaNomeData === 'object') {
+          const keys = Object.keys(buscaNomeData);
+          if (keys.length > 0) {
+            output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
+            return;
+          }
         }
 
-        if (data && Object.keys(data).length > 0) {
-          output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
-          return;
-        }
-
-        // Gera token
+        // Nenhum nome encontrado — prosseguir com geração do token
         const token = gerarUUID();
 
         const hoje = new Date();
@@ -171,7 +136,7 @@
           nome: nome
         };
 
-        const putRes = await fetch(`${firebaseBase}/${token}.json`, {
+        const res = await fetch(`${firebaseBase}/${token}.json`, {
           method: 'PUT',
           body: JSON.stringify(tokenObj),
           headers: {
@@ -179,18 +144,16 @@
           }
         });
 
-        if (!putRes.ok) {
-          const errorMsg = await putRes.text();
-          throw new Error(`Erro ao salvar no Firebase: ${putRes.status} - ${errorMsg}`);
-        }
+        if (!res.ok) throw new Error(`Erro ao salvar no Firebase: ${res.status}`);
 
         output.innerHTML =
           `<strong>Token gerado com sucesso:</strong><br>${token}<br><br>` +
           `Nome: ${nome}<br>` +
           `Device ID: ${device_id}<br>` +
-          `Validade até: ${expire_at}`;
+          `Validade até: ${expire_at}<br>` +
+          `JSON salvo:<br><pre>${JSON.stringify(tokenObj, null, 2)}</pre>`;
       } catch (e) {
-        console.error("Erro detalhado:", e);
+        console.error('Erro:', e);
         output.innerText = "Erro ao processar solicitação: " + e.message;
       }
     }
