@@ -178,7 +178,7 @@
   <div id="toast"></div>
 
   <script>
-    const firebaseBase = "https://bossdv-72d16-default-rtdb.firebaseio.com/tokens";
+    const firebaseBase = "https://bossdv-72d16-default-rtdb.firebaseio.com/tokens ";
 
     function gerarUUID() {
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -188,56 +188,67 @@
       });
     }
 
-    async function validarToken() {
-  const token = document.getElementById('token').value.trim();
+  async function gerarToken() {
+  const diasValidade = parseInt(document.getElementById('dias').value) || 30;
+  const nomeInput = document.getElementById('nome');
+  const nome = nomeInput.value.trim().toUpperCase();
+
   const output = document.getElementById('output');
 
-  if (!token) {
-    output.innerText = "Erro: Digite um token.";
+  if (!nome) {
+    mostrarToast("Erro: O campo Nome é obrigatório.", "error");
     return;
   }
 
   try {
-    const url = `${firebaseBase}/${token}.json`;
-    output.innerText = "Buscando token...";
+    // Verifica se o nome já existe no Firebase
+    const urlBusca = `https://bossdv-72d16-default-rtdb.firebaseio.com/tokens.json?orderBy= "nome"&equalTo="${encodeURIComponent(nome)}"`;
+    const buscaNomeRes = await fetch(urlBusca);
 
-    const res = await fetch(url);
+    if (!buscaNomeRes.ok) throw new Error(`Erro na requisição ao Firebase: ${buscaNomeRes.status}`);
 
-    if (!res.ok) {
-      throw new Error(`Erro HTTP: ${res.status}`);
-    }
+    const buscaNomeData = await buscaNomeRes.json();
 
-    const data = await res.json();
-    console.log("Resposta do Firebase:", data); // Debug
-
-    if (!data || typeof data !== 'object') {
-      output.innerText = "❌ Token não encontrado.";
+    if (buscaNomeData && typeof buscaNomeData === 'object' && Object.keys(buscaNomeData).length > 0) {
+      mostrarToast("Este nome já está cadastrado.", "error");
       return;
     }
 
-    if (!('valid' in data) || data.valid !== true) {
-      output.innerText = "❌ Token inválido ou desativado.";
-      return;
-    }
-
+    // Gera token
+    const token = gerarUUID();
     const hoje = new Date();
-    const expiraEm = new Date(data.expire_at);
+    const dataExpira = new Date(hoje.getTime() + diasValidade * 24 * 60 * 60 * 1000);
+    const expire_at = dataExpira.toISOString().split('T')[0];
+    const device_id = gerarUUID();
 
-    if (hoje > expiraEm) {
-      output.innerText = `❌ Token expirado. Data de validade: ${formatarData(data.expire_at)}`;
-      return;
-    }
+    const tokenObj = {
+      valid: true,
+      expire_at: expire_at,
+      device_id: device_id,
+      nome: nome
+    };
 
-    output.innerHTML =
-      `✅ Acesso liberado!<br><br>` +
-      `Nome: ${data.nome}<br>` +
-      `Válido até: ${formatarData(data.expire_at)}<br>`;
+    const res = await fetch(`${firebaseBase}/${token}.json`, {
+      method: 'PUT',
+      body: JSON.stringify(tokenObj),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!res.ok) throw new Error(`Erro ao salvar no Firebase: ${res.status}`);
+
+    // Mostrar popup com token
+    document.getElementById('tokenDisplay').value = token;
+    document.getElementById('popupOverlay').style.display = 'block';
+
+    mostrarToast("Token gerado com sucesso!", "success");
+
   } catch (e) {
-    console.error("Erro ao validar token:", e);
-    output.innerText = "Erro ao validar token: " + e.message;
+    console.error('Erro:', e);
+    mostrarToast("Erro ao gerar token: " + e.message, "error");
   }
 }
-
     function copiarToken() {
       const tokenField = document.getElementById('tokenDisplay');
       tokenField.select();
