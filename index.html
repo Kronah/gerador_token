@@ -189,49 +189,66 @@
     }
 
     async function gerarToken() {
-      const diasValidade = parseInt(document.getElementById('dias').value) || 30;
+      console.log("🔄 Iniciando geração de token...");
+
+      const diasInput = document.getElementById('dias');
       const nomeInput = document.getElementById('nome');
+
+      if (!diasInput || !nomeInput) {
+        console.error("❌ Elemento HTML não encontrado!");
+        return;
+      }
+
+      const diasValidade = parseInt(diasInput.value) || 30;
       const nome = nomeInput.value.trim().toUpperCase();
 
-      const output = document.getElementById('output');
+      const outputElement = document.getElementById('output');
+      if (!outputElement) {
+        console.error("❌ Div de saída (#output) não encontrada");
+        return;
+      }
 
       if (!nome) {
+        console.warn("❌ Nome vazio");
         mostrarToast("Erro: O campo Nome é obrigatório.", "error");
-        output.innerText = "Erro: O campo Nome é obrigatório.";
+        outputElement.innerText = "Erro: O campo Nome é obrigatório.";
         return;
       }
 
       try {
-        output.innerText = "Verificando se o nome já existe...";
+        outputElement.innerText = "Verificando se o nome já existe...";
+        console.log("🔍 Verificando no Firebase se o nome já existe:", nome);
 
         const url = `https://bossdv-72d16-default-rtdb.firebaseio.com/tokens.json?orderBy= "nome"&equalTo="${encodeURIComponent(nome)}"`;
+        console.log("🌐 URL da requisição:", url);
+
         const buscaNomeRes = await fetch(url);
 
-        if (!buscaNomeRes.ok) {
-          throw new Error(`Erro na requisição ao Firebase: ${buscaNomeRes.status}`);
-        }
+        console.log("📥 Resposta bruta do Firebase:", buscaNomeRes);
+        if (!buscaNomeRes.ok) throw new Error(`Erro HTTP: ${buscaNomeRes.status}`);
 
         const buscaNomeData = await buscaNomeRes.json();
-        console.log("Firebase - Resultado da busca:", buscaNomeData);
+        console.log("📄 Dados do Firebase:", buscaNomeData);
 
-        // Verificação reforçada: só gera token se NÃO encontrar nenhum com o mesmo nome
+        // Validação robusta
         if (buscaNomeData && typeof buscaNomeData === 'object' && !Array.isArray(buscaNomeData)) {
           const registros = Object.values(buscaNomeData);
           const encontrouNome = registros.some(reg => reg.nome === nome);
 
           if (encontrouNome) {
+            console.log("🚫 Nome duplicado detectado:", nome);
             mostrarToast("Este nome já está cadastrado.", "error");
-            output.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
+            outputElement.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
             return;
           }
         }
 
-        // Geração do token e salvamento no Firebase
+        console.log("✅ Nome único. Gerando token...");
         const token = gerarUUID();
 
         const hoje = new Date();
         const dataExpira = new Date(hoje.getTime() + diasValidade * 24 * 60 * 60 * 1000);
-        const expire_at = dataExpira.toISOString().split('T')[0]; // YYYY-MM-DD
+        const expire_at = dataExpira.toISOString().split('T')[0];
         const device_id = gerarUUID();
 
         const tokenObj = {
@@ -251,18 +268,47 @@
 
         if (!res.ok) throw new Error(`Erro ao salvar no Firebase: ${res.status}`);
 
-        // Mostra popup com token
+        console.log("🎉 Token salvo com sucesso:", token);
         document.getElementById('tokenDisplay').value = token;
         document.getElementById('popupOverlay').style.display = 'flex';
-
-        // Exibe resultado normal
-        output.innerHTML =
+        outputElement.innerHTML =
           `<strong>Token gerado com sucesso.</strong><br>` +
           `Nome: ${nome}<br>` +
           `Device ID: ${device_id}<br>` +
           `Validade até: ${expire_at}`;
 
       } catch (e) {
-        console.error('Erro:', e);
+        console.error("❌ Erro durante execução:", e);
         mostrarToast("Erro ao gerar token.", "error");
-        output.innerText = "Erro ao processar solicita
+        outputElement.innerText = "Erro ao processar solicitação: " + e.message;
+      }
+    }
+
+    function copiarToken() {
+      const tokenField = document.getElementById('tokenDisplay');
+      tokenField.select();
+      tokenField.setSelectionRange(0, 99999); // Para mobile
+      document.execCommand("copy");
+      mostrarToast("Token copiado!", "success");
+    }
+
+    function mostrarToast(mensagem, tipo = "success") {
+      const toast = document.getElementById("toast");
+      toast.className = "show";
+      toast.className = `show ${tipo}`;
+      toast.innerText = mensagem;
+
+      setTimeout(() => {
+        toast.className = toast.className.replace("show", "");
+      }, 3000);
+    }
+
+    // Fechar popup ao clicar fora
+    document.getElementById('popupOverlay').addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
