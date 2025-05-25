@@ -178,74 +178,50 @@
   <div id="toast"></div>
 
   <script>
-    const firebaseBase = "https://bossdv-72d16-default-rtdb.firebaseio.com/tokens ";
+    const firebaseBase = "https://bossdv-72d16-default-rtdb.firebaseio.com/tokens";
 
     function gerarUUID() {
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0,
-              v = c == 'x' ? r : (r & 0x3 | 0x8);
+              v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
       });
     }
 
     async function gerarToken() {
-      console.log("🔄 Iniciando geração de token...");
-
-      const diasInput = document.getElementById('dias');
       const nomeInput = document.getElementById('nome');
-
-      if (!diasInput || !nomeInput) {
-        console.error("❌ Elemento HTML não encontrado!");
-        return;
-      }
-
-      const diasValidade = parseInt(diasInput.value) || 30;
-      const nome = nomeInput.value.trim().toUpperCase();
-
+      const diasInput = document.getElementById('dias');
       const outputElement = document.getElementById('output');
-      if (!outputElement) {
-        console.error("❌ Div de saída (#output) não encontrada");
-        return;
-      }
+
+      const nome = nomeInput.value.trim().toUpperCase();
+      const diasValidade = parseInt(diasInput.value) || 30;
 
       if (!nome) {
-        console.warn("❌ Nome vazio");
         mostrarToast("Erro: O campo Nome é obrigatório.", "error");
         outputElement.innerText = "Erro: O campo Nome é obrigatório.";
         return;
       }
 
+      outputElement.innerText = "Verificando se o nome já existe...";
+
       try {
-        outputElement.innerText = "Verificando se o nome já existe...";
-        console.log("🔍 Verificando no Firebase se o nome já existe:", nome);
+        // URL para consulta com filtro pelo nome
+        const url = `${firebaseBase}.json?orderBy="nome"&equalTo="${nome}"`;
+        const response = await fetch(url);
 
-        const url = `https://bossdv-72d16-default-rtdb.firebaseio.com/tokens.json?orderBy= "nome"&equalTo="${encodeURIComponent(nome)}"`;
-        console.log("🌐 URL da requisição:", url);
+        if (!response.ok) throw new Error("Erro na consulta ao Firebase: " + response.status);
 
-        const buscaNomeRes = await fetch(url);
+        const data = await response.json();
 
-        console.log("📥 Resposta bruta do Firebase:", buscaNomeRes);
-        if (!buscaNomeRes.ok) throw new Error(`Erro HTTP: ${buscaNomeRes.status}`);
-
-        const buscaNomeData = await buscaNomeRes.json();
-        console.log("📄 Dados do Firebase:", buscaNomeData);
-
-        // Validação robusta
-        if (buscaNomeData && typeof buscaNomeData === 'object' && !Array.isArray(buscaNomeData)) {
-          const registros = Object.values(buscaNomeData);
-          const encontrouNome = registros.some(reg => reg.nome === nome);
-
-          if (encontrouNome) {
-            console.log("🚫 Nome duplicado detectado:", nome);
-            mostrarToast("Este nome já está cadastrado.", "error");
-            outputElement.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
-            return;
-          }
+        // Se existir algum registro com o nome, mostra erro
+        if (data && Object.keys(data).length > 0) {
+          mostrarToast("Este nome já está cadastrado.", "error");
+          outputElement.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
+          return;
         }
 
-        console.log("✅ Nome único. Gerando token...");
+        // Gerar token novo
         const token = gerarUUID();
-
         const hoje = new Date();
         const dataExpira = new Date(hoje.getTime() + diasValidade * 24 * 60 * 60 * 1000);
         const expire_at = dataExpira.toISOString().split('T')[0];
@@ -258,48 +234,57 @@
           nome: nome
         };
 
-        const res = await fetch(`${firebaseBase}/${token}.json`, {
+        // Salvar token no Firebase
+        const saveRes = await fetch(`${firebaseBase}/${token}.json`, {
           method: 'PUT',
-          body: JSON.stringify(tokenObj),
-          headers: {
-            'Content-Type': 'application/json'
-          }
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tokenObj)
         });
 
-        if (!res.ok) throw new Error(`Erro ao salvar no Firebase: ${res.status}`);
+        if (!saveRes.ok) throw new Error("Erro ao salvar token: " + saveRes.status);
 
-        console.log("🎉 Token salvo com sucesso:", token);
+        // Exibir token na popup
         document.getElementById('tokenDisplay').value = token;
         document.getElementById('popupOverlay').style.display = 'flex';
+
         outputElement.innerHTML =
           `<strong>Token gerado com sucesso.</strong><br>` +
           `Nome: ${nome}<br>` +
           `Device ID: ${device_id}<br>` +
           `Validade até: ${expire_at}`;
 
-      } catch (e) {
-        console.error("❌ Erro durante execução:", e);
-        mostrarToast("Erro ao gerar token.", "error");
-        outputElement.innerText = "Erro ao processar solicitação: " + e.message;
+        mostrarToast("Token gerado com sucesso!", "success");
+
+      } catch (error) {
+        console.error("Erro ao gerar token:", error);
+        mostrarToast("Erro ao gerar token: " + error.message, "error");
+        outputElement.innerText = "Erro: " + error.message;
       }
     }
 
     function copiarToken() {
-      const tokenField = document.getElementById('tokenDisplay');
-      tokenField.select();
-      tokenField.setSelectionRange(0, 99999); // Para mobile
-      document.execCommand("copy");
-      mostrarToast("Token copiado!", "success");
+      const tokenTextArea = document.getElementById("tokenDisplay");
+      tokenTextArea.select();
+      tokenTextArea.setSelectionRange(0, 99999); // Para dispositivos móveis
+
+      navigator.clipboard.writeText(tokenTextArea.value)
+        .then(() => {
+          mostrarToast("Token copiado para a área de transferência!", "success");
+        })
+        .catch(() => {
+          mostrarToast("Não foi possível copiar o token.", "error");
+        });
     }
 
     function mostrarToast(mensagem, tipo = "success") {
       const toast = document.getElementById("toast");
-      toast.className = "show";
-      toast.className = `show ${tipo}`;
       toast.innerText = mensagem;
+      toast.className = "";
+      toast.classList.add(tipo);
+      toast.classList.add("show");
 
       setTimeout(() => {
-        toast.className = toast.className.replace("show", "");
+        toast.classList.remove("show");
       }, 3000);
     }
 
@@ -310,5 +295,6 @@
       }
     });
   </script>
+
 </body>
 </html>
