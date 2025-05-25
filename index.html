@@ -14,6 +14,7 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
+      position: relative;
     }
     h1 {
       color: #4caf50;
@@ -53,35 +54,59 @@
       font-family: monospace;
     }
 
-    /* Estilo do Toast */
-    #toast {
-      visibility: hidden;
-      min-width: 250px;
-      background: #333;
-      color: #fff;
-      text-align: center;
-      border-radius: 5px;
-      padding: 12px;
+    /* Estilo do Popup */
+    .popup {
       position: fixed;
-      z-index: 10;
+      top: 20%;
       left: 50%;
-      bottom: 30px;
-      margin-left: -125px;
-      opacity: 0;
-      transition: opacity 0.5s, visibility 0.5s;
+      transform: translate(-50%, -50%);
+      background-color: #1e1e1e;
+      border: 2px solid #4caf50;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      width: 90%;
+      max-width: 400px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
     }
 
-    #toast.show {
-      visibility: visible;
-      opacity: 1;
+    .popup h2 {
+      margin-top: 0;
+      font-size: 1.2em;
+      color: #4caf50;
     }
 
-    #toast.success {
+    .popup textarea {
+      width: 100%;
+      height: 80px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 0.9em;
+      border: 1px solid #444;
+      background: #111;
+      color: #fff;
+      resize: none;
+      border-radius: 5px;
+    }
+
+    .popup button {
+      align-self: flex-end;
       background-color: #4caf50;
+      color: #121212;
+      width: auto;
+      padding: 8px 16px;
     }
 
-    #toast.error {
-      background-color: #e53935;
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 999;
     }
 
     footer {
@@ -108,8 +133,14 @@
 
   <footer>Desenvolvido por Kronah © 2025</footer>
 
-  <!-- Toast -->
-  <div id="toast"></div>
+  <!-- Overlay + Popup -->
+  <div class="overlay" id="popupOverlay">
+    <div class="popup" id="tokenPopup">
+      <h2>Token Gerado</h2>
+      <textarea id="tokenDisplay" readonly></textarea>
+      <button onclick="copiarToken()">Copiar Token</button>
+    </div>
+  </div>
 
   <script>
     const firebaseBase = "https://bossdv-72d16-default-rtdb.firebaseio.com/tokens ";
@@ -182,16 +213,16 @@
 
         if (!res.ok) throw new Error(`Erro ao salvar no Firebase: ${res.status}`);
 
-        // Exibe resultado com botão de copiar
+        // Exibe popup com token
+        document.getElementById('tokenDisplay').value = token;
+        document.getElementById('popupOverlay').style.display = 'block';
+
+        // Mostra também a saída normal
         output.innerHTML =
-          `<strong>Token gerado com sucesso:</strong><br>${token}<br><br>` +
+          `<strong>Token gerado com sucesso.</strong><br>` +
           `Nome: ${nome}<br>` +
           `Device ID: ${device_id}<br>` +
-          `Validade até: ${expire_at}<br>` +
-          `<button onclick='copiarToken("${token}")'>Copiar Token</button>`;
-
-        mostrarToast("Token gerado e salvo!", "success");
-
+          `Validade até: ${expire_at}`;
       } catch (e) {
         console.error('Erro:', e);
         mostrarToast("Erro ao gerar token.", "error");
@@ -199,26 +230,33 @@
       }
     }
 
+    function copiarToken() {
+      const tokenField = document.getElementById('tokenDisplay');
+      tokenField.select();
+      tokenField.setSelectionRange(0, 99999); // Para mobile
+      document.execCommand("copy");
+
+      alert("Token copiado para a área de transferência!");
+    }
+
     function mostrarToast(mensagem, tipo = "success") {
-      const toast = document.getElementById("toast");
-      toast.className = "show";
+      const toast = document.createElement("div");
+      toast.id = "toast";
       toast.className = `show ${tipo}`;
       toast.innerText = mensagem;
+      document.body.appendChild(toast);
 
       setTimeout(() => {
-        toast.className = toast.className.replace("show", "");
+        toast.remove();
       }, 3000);
     }
 
-    async function copiarToken(token) {
-      try {
-        await navigator.clipboard.writeText(token);
-        mostrarToast("Token copiado!", "success");
-      } catch (err) {
-        mostrarToast("Falha ao copiar.", "error");
-        console.error('Erro ao copiar:', err);
+    // Fechar popup ao clicar fora
+    document.getElementById('popupOverlay').addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.style.display = 'none';
       }
-    }
+    });
   </script>
 
 </body>
