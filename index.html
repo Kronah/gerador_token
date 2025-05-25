@@ -188,79 +188,55 @@
       });
     }
 
-    async function gerarToken() {
-      console.log("🔄 Iniciando geração de token...");
+    async function validarToken() {
+  const token = document.getElementById('token').value.trim();
+  const output = document.getElementById('output');
 
-      const nomeInput = document.getElementById('nome');
-      const diasInput = document.getElementById('dias');
-      const outputElement = document.getElementById('output');
+  if (!token) {
+    output.innerText = "Erro: Digite um token.";
+    return;
+  }
 
-      const nome = nomeInput.value.trim().toUpperCase();
-      const diasValidade = parseInt(diasInput.value) || 30;
+  try {
+    const url = `${firebaseBase}/${token}.json`;
+    output.innerText = "Buscando token...";
 
-      if (!nome) {
-        mostrarToast("Erro: O campo Nome é obrigatório.", "error");
-        outputElement.innerText = "Erro: O campo Nome é obrigatório.";
-        return;
-      }
+    const res = await fetch(url);
 
-      outputElement.innerText = "Verificando se o nome já existe...";
-
-      try {
-        const url = `${firebaseBase}.json?orderBy="nome"&equalTo="${nome}"`;
-        console.log("🌐 URL da requisição:", url);
-
-        const response = await fetch(url);
-
-        if (!response.ok) throw new Error("Erro na consulta ao Firebase: " + response.status);
-
-        const data = await response.json();
-        console.log("📄 Dados do Firebase:", data);
-
-        if (data && Object.keys(data).length > 0) {
-          mostrarToast("Este nome já está cadastrado.", "error");
-          outputElement.innerText = "Erro: Este nome já está cadastrado. Esta pessoa já tem acesso.";
-          return;
-        }
-
-        const token = gerarUUID();
-
-        const hoje = new Date();
-        const dataExpira = new Date(hoje.getTime() + diasValidade * 24 * 60 * 60 * 1000);
-        const expire_at = dataExpira.toISOString().split('T')[0];
-
-        // Salvar token SEM device_id
-        const tokenObj = {
-          valid: true,
-          expire_at: expire_at,
-          nome: nome
-        };
-
-        const saveRes = await fetch(`${firebaseBase}/${token}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(tokenObj)
-        });
-
-        if (!saveRes.ok) throw new Error("Erro ao salvar token: " + saveRes.status);
-
-        console.log("🎉 Token salvo com sucesso:", token);
-        document.getElementById('tokenDisplay').value = token;
-        document.getElementById('popupOverlay').style.display = 'flex';
-
-        outputElement.innerHTML =
-          `<strong>Token gerado com sucesso.</strong><br>` +
-          `Nome: ${nome}<br>` +
-          `Validade até: ${expire_at}`;
-
-        mostrarToast("Token gerado com sucesso!", "success");
-
-      } catch (error) {
-        console.error("❌ Erro ao gerar token:", error);
-        mostrarToast("Erro ao gerar token: " + error.message, "error");
-        outputElement.innerText = "Erro: " + error.message;
-      }
+    if (!res.ok) {
+      throw new Error(`Erro HTTP: ${res.status}`);
     }
+
+    const data = await res.json();
+    console.log("Resposta do Firebase:", data); // Debug
+
+    if (!data || typeof data !== 'object') {
+      output.innerText = "❌ Token não encontrado.";
+      return;
+    }
+
+    if (!('valid' in data) || data.valid !== true) {
+      output.innerText = "❌ Token inválido ou desativado.";
+      return;
+    }
+
+    const hoje = new Date();
+    const expiraEm = new Date(data.expire_at);
+
+    if (hoje > expiraEm) {
+      output.innerText = `❌ Token expirado. Data de validade: ${formatarData(data.expire_at)}`;
+      return;
+    }
+
+    output.innerHTML =
+      `✅ Acesso liberado!<br><br>` +
+      `Nome: ${data.nome}<br>` +
+      `Válido até: ${formatarData(data.expire_at)}<br>`;
+  } catch (e) {
+    console.error("Erro ao validar token:", e);
+    output.innerText = "Erro ao validar token: " + e.message;
+  }
+}
 
     function copiarToken() {
       const tokenField = document.getElementById('tokenDisplay');
